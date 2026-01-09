@@ -80,10 +80,7 @@ while RENDERING==True:
         DELAY_TIMER = DELAY_TIMER-1
         ADDED_TIME=0
 
-    #checks for inputs
-        #quit from x button functionality
-        if event.type == pygame.QUIT:
-            RENDERING = False
+    
        
             
             
