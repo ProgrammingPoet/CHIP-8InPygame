@@ -1,3 +1,10 @@
+with open("rom.txt", "r") as f:
+    hex_codes = f.read().split()
+
+rom_bytes = bytes([int(byte, 16) for byte in hex_codes])
+
+with open("ROM.ch8", "wb") as f:
+    f.write(rom_bytes)
 import random
 import pygame
 pygame.init()#initialisation
@@ -9,11 +16,32 @@ Program_Counter_Register=0x200
 Index_Register=0
 STACK_LIST=[]
 DELAY_TIMER=0
+SOUND_TIMER=0
 OPCODE=0
+FONT_SET = [
+    0xF0, 0x90, 0x90, 0x90, 0xF0,  # 0
+    0x20, 0x60, 0x20, 0x20, 0x70,  # 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0,  # 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0,  # 3
+    0x90, 0x90, 0xF0, 0x10, 0x10,  # 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0,  # 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0,  # 6
+    0xF0, 0x10, 0x20, 0x40, 0x40,  # 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0,  # 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0,  # 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90,  # A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0,  # B
+    0xF0, 0x80, 0x80, 0x80, 0xF0,  # C
+    0xE0, 0x90, 0x90, 0x90, 0xE0,  # D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0,  # E
+    0xF0, 0x80, 0xF0, 0x80, 0x80   # F
+]
+
 MEMORY = [0] * 4096
+for i in range(len(FONT_SET)):
+    MEMORY[0x050 + i] = FONT_SET[i]
 V = [0] * 16
-SCREEN=[[0 for i in range(65)] for i in range(33)]
-print(SCREEN[0])
+SCREEN=[[0 for i in range(64)] for i in range(32)]
 KEYPAD = {
     pygame.K_1: 0x1,
     pygame.K_2: 0x2,
@@ -32,6 +60,7 @@ KEYPAD = {
     pygame.K_c: 0xB,
     pygame.K_v: 0xF,
 }
+
 with open("ROM.ch8", "rb") as ROM:
     BINARY_DATA = ROM.read()
 for INDEX,BYTE in enumerate(BINARY_DATA):
@@ -40,7 +69,7 @@ for INDEX,BYTE in enumerate(BINARY_DATA):
 #gameloop
 while RENDERING==True:
     
-    OPCODE = (MEMORY[PC] << 8) | MEMORY[Program_Counter_Register + 1]
+    OPCODE = (MEMORY[Program_Counter_Register] << 8) | MEMORY[Program_Counter_Register + 1]
 
     Program_Counter_Register=Program_Counter_Register+2
 
@@ -58,6 +87,7 @@ while RENDERING==True:
     #opcodes(31/35)
     if OPCODE==0x00E0: #0x00E0
         WINDOW.fill((0,0,0))
+        SCREEN=[[0 for i in range(64)] for i in range(32)]
         
     elif (OPCODE & 0xF000)>>12==0x6:#0x6XNN
         X=(OPCODE&0x0F00)>>8
@@ -207,30 +237,41 @@ while RENDERING==True:
         X = (OPCODE & 0x0F00)>>8
         Y = (OPCODE & 0x00F0)>>4
         N = (OPCODE & 0x000F)
-        for i in range(N+1):
-            BYTE=MEMORY[Index_Register+i]
-            BITS=[(BYTE & 0b00000001),(BYTE & 0b00000010) >> 1,(BYTE & 0b00000100) >> 2,(BYTE & 0b00001000) >> 3,(BYTE & 0b00010000)>>4,(BYTE & 0b00100000) >> 5,(BYTE & 0b01000000) >> 6,(BYTE & 0b10000000) >> 7]
+        for i in range(N):
+            BYTE = MEMORY[Index_Register + i]
+            BITS = [
+                    (BYTE & 0b00000001),
+                    (BYTE & 0b00000010) >> 1,
+                    (BYTE & 0b00000100) >> 2,
+                    (BYTE & 0b00001000) >> 3,
+                    (BYTE & 0b00010000) >> 4,
+                    (BYTE & 0b00100000) >> 5,
+                    (BYTE & 0b01000000) >> 6,
+                    (BYTE & 0b10000000) >> 7
+                                            ]
             BITS.reverse()
-            SCREEN_BITS = [(SCREEN[V[Y]][V[X]] & 0b00000001),(SCREEN[V[Y]][V[X]] & 0b00000010) >> 1,(SCREEN[V[Y]][V[X]] & 0b00000100) >> 2,(SCREEN[V[Y]][V[X]] & 0b00001000) >> 3,(SCREEN[V[Y]][V[X]] & 0b00010000)>>4,(SCREEN[V[Y]][V[X]] & 0b00100000) >> 5,(SCREEN[V[Y]][V[X]] & 0b01000000) >> 6,(SCREEN[V[Y]][V[X]] & 0b10000000) >> 7)
-            SCREEN_BITS.reverse()
+
             for q in range(8):
-                if SCREEN_BITS[q] == 1 and BITS[q] == 1:
-                    V[15]=1
+                if SCREEN[(V[Y] + i)%32][(V[X] + q)%64] == 1 and BITS[q] == 1:
+                    V[15] = 1
+                SCREEN[(V[Y] + i)%32][(V[X] + q)%64] ^= BITS[q]  # Flip pixel with XOR
+
             for e in range(8):
-                if BITS[e]==1:
-                    PIXEL=pygame.Rect(V[X]+e,V[Y]+i,1*10,1*10)
-                    pygame.draw.rect(WINDOW,(255,255,255),PIXEL)
-            
-                
-                
-            
+                if SCREEN[(V[Y] + i)%64][(V[X] + e)%64] == 1:
+                    PIXEL = pygame.Rect((V[X] + e) * 10, (V[Y] + i) * 10, 10, 10)
+                    pygame.draw.rect(WINDOW, (255, 255, 255), PIXEL)
+        print(hex(Program_Counter_Register), hex(OPCODE))
+        print("V0, V1, I:", V[0], V[1], Index_Register)
+
+
+
             
 
-        
-        #SPRITE=pygame.Rect(V[X],V[Y],8*10,N*8*10)
-        #pygame.draw.rect(WINDOW,(255,255,255),SPRITE)
-        
-        
+
+                     
+            
+
+                
         
 
         
