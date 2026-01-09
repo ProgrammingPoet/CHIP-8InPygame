@@ -3,7 +3,9 @@ pygame.init()#initialisation
 WINDOW = pygame.display.set_mode((640,320))#window resolution
 pygame.display.set_caption("CHIP-8")#sets window title
 CLOCK = pygame.time.Clock()#initialising fps functionalilty
-
+RENDERING = True
+Program_Counter_Registar=0x200
+STACK_LIST=[]
 
 
 #gameloop
@@ -16,12 +18,67 @@ while RENDERING==True:
     
     CLOCK.tick(60)#FPS lock
 
-    #opcodes
+    #opcodes(12/35)
     if OPCODE==0x00E0: #0x00E0
         WINDOW.fill((0,0,0))
         
-    elif (OPCODE & 0xF00)>>12==0x6:#6XNN
+    elif (OPCODE & 0xF000)>>12==0x6:#0x6XNN
         X=(OPCODE&0x0F00)>>8
         NN = OPCODE & 0x00FF          
         V[X] = NN
+    elif (OPCODE & 0xF000)>>12==0x1:#0x1NNN
+        ADDRESS=(OPCODE & 0x0FFF)
+        Program_Counter_Register=ADDRESS
+    elif (OPCODE & 0xF000)>>12==0x7:#0x7XNN
+        NN=(OPCODE & 0x00FF)
+        V[X]=(V[X]+NN)&0xFF
+    elif (OPCODE & 0xF000)>>12==0xA:#0xANN
+        Index_Register=(OPCODE & 0x0FFF)
+    elif (OPCODE & 0xF000)>>12==0x2:#0x2NNN
+        ADDRESS = OPCODE & 0x0FFF
+        STACK_LIST.append(Progam_Counter_Register)
+        Program_Counter_Register = ADDRESS
+    elif OPCODE == 0x00EE:#0x00EE
+        Program_Counter_Register = STACK_LIST.pop()
+    elif (OPCODE & 0xF000)>>12==0x3:#0x3XNN
+        X = (OPCODE & 0x0F00)>>8
+        NN = (OPCODE & 0x00FF)
+        if V[X]== NN:
+            Program_Counter_Register = Progam_Counter_Register + 2
+    elif (OPCODE & 0xF000)>>12==0x4:#0x4XNN
+        X = (OPCODE & 0x0F00)>>8
+        NN = (OPCODE & 0x00FF)
+        if V[X] != NN:
+            Program_Counter_Register = Progam_Counter_Register + 2
+    elif (OPCODE & 0xF00F)==0x5000:#0x5XY0
+        X =(OPCODE & 0x0F00)>>8
+        Y =(OPCODE & 0x00F0)>>4
+        if V[X]==V[Y]:
+            Program_Counter_Register = Program_Counter_Register + 2
+    elif (OPCODE & 0xF00F)==0x9000:#0x9XY0
+        X =(OPCODE & 0x0F00)>>8
+        Y =(OPCODE & 0x00F0)>>4
+        if V[X]!=V[Y]:
+            Program_Counter_Register = Program_Counter_Register + 2
+    elif (OPCODE & 0xF00F)==0x8000:#0x8XY0
+        X =(OPCODE & 0x0F00)>>8
+        Y =(OPCODE & 0x00F0)>>4
+        V[X]=V[Y]
+    elif (OPCODE & 0xF0FF)==0xF01E:#0xFX1E
+        X = (OPCODE & 0x0F00)>>8
+        Index_Register=(Index_Register+V[X])&0xFFFF
+    elif
+
+            
+        
+
+
+    
+
+
+
+    
+        
+    pygame.display.flip()#render final image
+
     
