@@ -37,7 +37,25 @@ for i in range(len(FONT_SET)):
     MEMORY[0x050 + i] = FONT_SET[i]
 V = [0] * 16
 SCREEN=[[0 for i in range(64)] for i in range(32)]
-KEYPAD = {
+KEYPADHEX = {
+    0x1: pygame.K_1,
+    0x2: pygame.K_2,
+    0x3: pygame.K_3,
+    0xC: pygame.K_4,
+    0x4: pygame.K_q,
+    0x5: pygame.K_w,
+    0x6: pygame.K_e,
+    0xD: pygame.K_r,
+    0x7: pygame.K_a,
+    0x8: pygame.K_s,
+    0x9: pygame.K_d,
+    0xE: pygame.K_f,
+    0xA: pygame.K_z,
+    0x0: pygame.K_x,
+    0xB: pygame.K_c,
+    0xF: pygame.K_v,
+}
+KEYPADPY = {
     pygame.K_1: 0x1,
     pygame.K_2: 0x2,
     pygame.K_3: 0x3,
@@ -56,6 +74,25 @@ KEYPAD = {
     pygame.K_v: 0xF,
 }
 
+KEYPAD_STATE = {
+    pygame.K_1: False,
+    pygame.K_2: False,
+    pygame.K_3: False,
+    pygame.K_4: False,
+    pygame.K_q: False,
+    pygame.K_w: False,
+    pygame.K_e: False,
+    pygame.K_r: False,
+    pygame.K_a: False,
+    pygame.K_s: False,
+    pygame.K_d: False,
+    pygame.K_f: False,
+    pygame.K_z: False,
+    pygame.K_x: False,
+    pygame.K_c: False,
+    pygame.K_v: False,
+}
+
 with open("ROM.ch8", "rb") as ROM:
     BINARY_DATA = ROM.read()
 for INDEX,BYTE in enumerate(BINARY_DATA):
@@ -63,6 +100,26 @@ for INDEX,BYTE in enumerate(BINARY_DATA):
 
 #gameloop
 while RENDERING==True:
+
+    KEY_PRESSED_STATE=False
+    KEY_RELEASED_STATE=False
+    
+    for event in pygame.event.get():#checks for inputs
+        #quit from x button functionality
+        if event.type == pygame.QUIT:
+            RENDERING = False
+        if event.type == pygame.KEYDOWN:
+             if event.key in KEYPAD_STATE:
+                KEYPAD_STATE[event.key]=True
+                KEY_PRESSED_STATE=True
+                KEY_PRESSED=event.key
+        if event.type == pygame.KEYUP:
+             if event.key in KEYPAD_STATE:
+                KEYPAD_STATE[event.key]=False
+                KEY_RELEASED_STATE=True
+                KEY_RELEASED=event.key
+        
+    
 
 
 
@@ -73,13 +130,12 @@ while RENDERING==True:
 
     Program_Counter_Register=(Program_Counter_Register+2) & 0xFFFF
 
-    if SOUND_TIMER>0 and ADDED_TIME>=1/60:
-        SOUND_TIMER = SOUND_TIMER-1
-        ADDED_TIME=0
-    if DELAY_TIMER>0 and ADDED_TIME>=1/60:
-        DELAY_TIMER = DELAY_TIMER-1
-        ADDED_TIME=0
-
+    if ADDED_TIME >= 1/60:
+        if SOUND_TIMER > 0:
+            SOUND_TIMER -= 1
+        if DELAY_TIMER > 0:
+            DELAY_TIMER -= 1
+        ADDED_TIME = 0
     
        
             
@@ -160,12 +216,11 @@ while RENDERING==True:
     elif (OPCODE & 0xF0FF)==0xF00A:#0xFX0A
         X = (OPCODE & 0x0F00)>>8
         Program_Counter_Register=Program_Counter_Register-2
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                KEY_PRESSED=event.key
-                V[X]=KEYPAD[KEY_PRESSED]
-                Program_Counter_Register=Program_Counter_Register+2
-            
+        if KEY_PRESSED_STATE==True:
+            V[X]=KEYPADPY[KEY_PRESSED]
+        if KEY_RELEASED_STATE==True and KEYPADPY[KEY_RELEASED]==V[X]:
+            Program_Counter_Register=Program_Counter_Register+2
+
     elif (OPCODE & 0xF00F)==0x8001:#0x8XY1
         V[15]=0
         X = (OPCODE & 0x0F00)>>8
@@ -215,17 +270,12 @@ while RENDERING==True:
         V[X]=(V[Y]-V[X])&0xFF
     elif (OPCODE & 0xF0FF)==0xE09E:#0xEX9E
         X = (OPCODE & 0x0F00)>>8
-        KEYS_DOWN = pygame.key.get_pressed()
-        for PYKEY,HEXKEY in KEYPAD.items():
-            if HEXKEY==V[X] and KEYS_DOWN[PYKEY]==True:
-                Program_Counter_Register=(Program_Counter_Register+2) & 0xFFFF
+        if KEYPAD_STATE[KEYPADHEX[V[X]]]==True:
+            Program_Counter_Register=(Program_Counter_Register+2) & 0xFFFF
     elif (OPCODE & 0xF0FF)==0xE0A1:#0xEXA1
         X = (OPCODE & 0x0F00)>>8
-        KEYS_DOWN = pygame.key.get_pressed()
-        for PYKEY,HEXKEY in KEYPAD.items():
-            if HEXKEY==V[X] and KEYS_DOWN[PYKEY]==False:
-                Program_Counter_Register=(Program_Counter_Register+2) & 0xFFFF
-                break
+        if KEYPAD_STATE[KEYPADHEX[V[X]]]==False:
+            Program_Counter_Register=(Program_Counter_Register+2) & 0xFFFF
     elif (OPCODE & 0xF00F)==0x800E:#0x8XYE
         X = (OPCODE & 0x0F00)>>8
         Y = (OPCODE & 0x00F0)>>4
@@ -277,7 +327,7 @@ while RENDERING==True:
                     continue
                 if SCREEN[(V[Y]%32)+i][(V[X]%64)+q] == 1 and BITS[q] == 1:
                     V[15] = 1
-                SCREEN[(V[Y]%32)+i][(V[X]%64)+q] ^= BITS[q]  # Flip pixel with XOR
+                SCREEN[(V[Y]%32)+i][(V[X]%64)+q] = BITS[q] ^ SCREEN[(V[Y]%32)+i][(V[X]%64)+q]  # Flip pixel with XOR
 
             for e in range(8):
                 if V[X]%64+e>=64 or V[Y]%32+i>=32:
@@ -285,15 +335,15 @@ while RENDERING==True:
                 if SCREEN[(V[Y]%32)+i][(V[X]%64)+e] == 1:
                     PIXEL = pygame.Rect(((V[X]%64)+e) * 10, ((V[Y]%32)+i) * 10, 10, 10)
                     pygame.draw.rect(WINDOW, (255, 255, 255), PIXEL)
+                if SCREEN[(V[Y]%32)+i][(V[X]%64)+e] == 0:
+                    PIXEL = pygame.Rect(((V[X]%64)+e) * 10, ((V[Y]%32)+i) * 10, 10, 10)
+                    pygame.draw.rect(WINDOW, (0, 0, 0), PIXEL)
                     
 
     pygame.display.flip()#render final image
 
 
-    for event in pygame.event.get():#checks for inputs
-        #quit from x button functionality
-        if event.type == pygame.QUIT:
-            RENDERING = False
+    
 
             
 
