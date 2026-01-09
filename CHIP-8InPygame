@@ -149,9 +149,23 @@ while RENDERING==True:
         else:
             V[15]=0
         V[X]=(V[Y]-V[X])&0xFF
+    elif (OPCODE & 0xF0FF)==0xE09E:#0xEX9E
+        X = (OPCODE & 0x0F00)>>8
+        KEYS_DOWN = pygame.key.get_pressed()
+        for PYKEY,HEXKEY in KEYPAD.items():#left,true
+            if HEXKEY==V[X] and KEYS_DOWN[PYKEY]==True:
+                Program_Counter_Register=Program_Counter_Register+2
+    elif (OPCODE & 0xF00F)==0x800E:#0x8XYE
+
+
     
 
     
+    
+    
+
+    
+
         
 
     
