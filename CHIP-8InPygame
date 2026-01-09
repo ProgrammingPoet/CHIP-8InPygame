@@ -5,11 +5,13 @@ WINDOW = pygame.display.set_mode((640,320))#window resolution
 pygame.display.set_caption("CHIP-8")#sets window title
 CLOCK = pygame.time.Clock()#initialising fps functionalilty
 RENDERING = True
+RUNNING = True
 Program_Counter_Register=0x200
 Index_Register=0
 STACK_LIST=[]
 DELAY_TIMER=0
 SOUND_TIMER=0
+ADDED_TIME=0
 OPCODE=0
 FONT_SET = [
     0xF0, 0x90, 0x90, 0x90, 0xF0,  # 0
@@ -61,21 +63,31 @@ for INDEX,BYTE in enumerate(BINARY_DATA):
 
 #gameloop
 while RENDERING==True:
-    
+
+
+
+    DELTA_TIME=CLOCK.tick()/1000
+    ADDED_TIME=ADDED_TIME+DELTA_TIME
     
     OPCODE = (MEMORY[Program_Counter_Register] << 8) | MEMORY[Program_Counter_Register + 1]
 
     Program_Counter_Register=(Program_Counter_Register+2) & 0xFFFF
 
-    if SOUND_TIMER>0:
+    if SOUND_TIMER>0 and ADDED_TIME>=1/60:
         SOUND_TIMER = SOUND_TIMER-1
-    if DELAY_TIMER>0:
+        ADDED_TIME=0
+    if DELAY_TIMER>0 and ADDED_TIME>=1/60:
         DELAY_TIMER = DELAY_TIMER-1
+        ADDED_TIME=0
 
-    for event in pygame.event.get():#checks for inputs
+    #checks for inputs
         #quit from x button functionality
         if event.type == pygame.QUIT:
             RENDERING = False
+       
+            
+            
+
     
 
     #opcodes(35/35)
@@ -114,6 +126,9 @@ while RENDERING==True:
         NN = (OPCODE & 0x00FF)
         if V[X] != NN:
             Program_Counter_Register = (Program_Counter_Register + 2) & 0xFFFF
+    elif (OPCODE & 0xF000) == 0xB000:# 0xBNNN
+        ADDRESS = OPCODE & 0x0FFF
+        Program_Counter_Register = (ADDRESS + V[0]) & 0xFFFF
     elif (OPCODE & 0xF00F)==0x5000:#0x5XY0
         X =(OPCODE & 0x0F00)>>8
         Y =(OPCODE & 0x00F0)>>4
@@ -146,26 +161,26 @@ while RENDERING==True:
         RANDOM=random.randint(0,255)
         V[X]=(RANDOM & NN) & 0xFF
     elif (OPCODE & 0xF0FF)==0xF00A:#0xFX0A
-        PAUSE=True
-        while PAUSE==True:
-            for event in pygame.event.get():#checks for inputs
-                if event.type == pygame.KEYDOWN:
-                    PAUSE=False
-                    KEY_PRESSED=event.key
-                    break
-            
         X = (OPCODE & 0x0F00)>>8
-        if KEY_PRESSED in KEYPAD:
-            V[X]=KEYPAD[KEY_PRESSED] & 0xFF
+        Program_Counter_Register=Program_Counter_Register-2
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                KEY_PRESSED=event.key
+                V[X]=KEYPAD[KEY_PRESSED]
+                Program_Counter_Register=Program_Counter_Register+2
+            
     elif (OPCODE & 0xF00F)==0x8001:#0x8XY1
+        V[15]=0
         X = (OPCODE & 0x0F00)>>8
         Y = (OPCODE & 0x00F0)>>4
         V[X]=(V[X]|V[Y]) & 0xFF
     elif (OPCODE & 0xF00F)==0x8002:#0x8XY2
+        V[15]=0
         X = (OPCODE & 0x0F00)>>8
         Y = (OPCODE & 0x00F0)>>4
         V[X]=(V[X] & V[Y]) & 0xFF
     elif (OPCODE & 0xF00F)==0x8003:#0x8XY3
+        V[15]=0
         X = (OPCODE & 0x0F00)>>8
         Y = (OPCODE & 0x00F0)>>4
         V[X]=(V[X] ^ V[Y]) & 0xFF
@@ -189,6 +204,8 @@ while RENDERING==True:
         V[X]=(V[X]-V[Y])&0xFF
     elif (OPCODE & 0xF00F)==0x8006:#0x8XY6
         X = (OPCODE & 0x0F00)>>8
+        Y = (OPCODE & 0x00F0)>>4
+        V[X]=V[Y]
         V[15]=V[X]&0x1
         V[X]=V[X]>>1
     elif (OPCODE & 0xF00F)==0x8007:#0x8XY7
@@ -213,17 +230,21 @@ while RENDERING==True:
                 Program_Counter_Register=(Program_Counter_Register+2) & 0xFFFF
                 break
     elif (OPCODE & 0xF00F)==0x800E:#0x8XYE
-        X=(OPCODE & 0x0F00)>>8
-        V[15]=((V[X] & 0x80)>>7) & 0xFF
-        V[X] =((V[X] & 0xFF)<<1) & 0xFF
+        X = (OPCODE & 0x0F00)>>8
+        Y = (OPCODE & 0x00F0)>>4
+        V[X]=V[Y]
+        V[15]=V[X]&0x10000000
+        V[X]=V[X]<<1
     elif (OPCODE & 0xF0FF)==0xF055:#0xFX55
         X = (OPCODE & 0x0F00)>>8
         for i in range(X+1):
             MEMORY[Index_Register+i]=V[i]
+        Index_Register = Index_Register + X + 1
     elif (OPCODE & 0xF0FF)==0xF065:#0xFX65
         X = (OPCODE & 0x0F00)>>8
         for i in range(X+1):
             V[i]=MEMORY[Index_Register+i] & 0xFF
+        Index_Register = Index_Register + X + 1
     elif (OPCODE & 0xF0FF)==0xF029:#0xFX29
         X = (OPCODE & 0x0F00)>>8
         Index_Register=V[X]*5
@@ -240,6 +261,7 @@ while RENDERING==True:
         Y = (OPCODE & 0x00F0)>>4
         N = (OPCODE & 0x000F)
         for i in range(N):
+            
             BYTE = MEMORY[Index_Register + i]
             BITS = [
                     (BYTE & 0b00000001),
@@ -254,15 +276,34 @@ while RENDERING==True:
             BITS.reverse()
 
             for q in range(8):
-                if SCREEN[(V[Y] + i)%32][(V[X] + q)%64] == 1 and BITS[q] == 1:
+                if V[X]%64+q>=64 or V[Y]%32+i>=32:
+                    continue
+                if SCREEN[(V[Y]%32)+i][(V[X]%64)+q] == 1 and BITS[q] == 1:
                     V[15] = 1
-                SCREEN[(V[Y] + i)%32][(V[X] + q)%64] ^= BITS[q]  # Flip pixel with XOR
+                SCREEN[(V[Y]%32)+i][(V[X]%64)+q] ^= BITS[q]  # Flip pixel with XOR
 
             for e in range(8):
-                if SCREEN[(V[Y] + i)%32][(V[X] + e)%64] == 1:
-                    PIXEL = pygame.Rect((V[X] + e) * 10, (V[Y] + i) * 10, 10, 10)
+                if V[X]%64+e>=64 or V[Y]%32+i>=32:
+                    continue
+                if SCREEN[(V[Y]%32)+i][(V[X]%64)+e] == 1:
+                    PIXEL = pygame.Rect(((V[X]%64)+e) * 10, ((V[Y]%32)+i) * 10, 10, 10)
                     pygame.draw.rect(WINDOW, (255, 255, 255), PIXEL)
+                    
+
+    pygame.display.flip()#render final image
+
+
+    for event in pygame.event.get():#checks for inputs
+        #quit from x button functionality
+        if event.type == pygame.QUIT:
+            RENDERING = False
+
+            
+
+    
+
         
+pygame.quit()
    
 
             
@@ -320,8 +361,8 @@ while RENDERING==True:
 
     
     
-    CLOCK.tick(60)#FPS lock
+    
 
-    pygame.display.flip()#render final image
+    
 
     
