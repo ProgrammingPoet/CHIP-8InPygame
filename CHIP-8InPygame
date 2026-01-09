@@ -6,8 +6,10 @@ pygame.display.set_caption("CHIP-8")#sets window title
 CLOCK = pygame.time.Clock()#initialising fps functionalilty
 RENDERING = True
 Program_Counter_Register=0x200
+Index_Register=0
 STACK_LIST=[]
 DELAY_TIMER=0
+MEMORY = [0] * 4096 
 KEYPAD = {
     pygame.K_1: 0x1,
     pygame.K_2: 0x2,
@@ -38,7 +40,7 @@ while RENDERING==True:
     
     CLOCK.tick(60)#FPS lock
 
-    #opcodes(27/35)
+    #opcodes(31/35)
     if OPCODE==0x00E0: #0x00E0
         WINDOW.fill((0,0,0))
         
@@ -56,7 +58,7 @@ while RENDERING==True:
         Index_Register=(OPCODE & 0x0FFF)
     elif (OPCODE & 0xF000)>>12==0x2:#0x2NNN
         ADDRESS = OPCODE & 0x0FFF
-        STACK_LIST.append(Progam_Counter_Register)
+        STACK_LIST.append(Program_Counter_Register)
         Program_Counter_Register = ADDRESS
     elif OPCODE == 0x00EE:#0x00EE
         Program_Counter_Register = STACK_LIST.pop()
@@ -156,6 +158,19 @@ while RENDERING==True:
             if HEXKEY==V[X] and KEYS_DOWN[PYKEY]==True:
                 Program_Counter_Register=Program_Counter_Register+2
     elif (OPCODE & 0xF00F)==0x800E:#0x8XYE
+        X=(OPCODE & 0x0F00)>>8
+        V[15]=(V[X] & 0x80)>>7
+        V[X] = (V[X] & 0xFF)<<1
+    elif (OPCODE & 0xF0FF)==0xF055:#0xFX55
+        X = (OPCODE & 0x0F00)>>8
+        for i in range(X+1):
+            MEMORY[Index_Register+i]=V[i]
+    elif (OPCODE & 0xF0FF)==0xF065:#0xFX65
+        X = (OPCODE & 0x0F00)>>8
+        for i in range(X+1):
+            V[i]=MEMORY[Index_Register+i]
+    
+                
 
 
     
